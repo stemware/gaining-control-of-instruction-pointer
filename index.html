@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<div class ="sidebar">
+	<div class="container sidebar-sticky">
+	</div>
+ </div>
+</head>
+<body class="theme-base-08">
+	<link rel="stylesheet" href="https://github.com/stemware/gaining-control-of-instruction-pointer/blob/master/hyde.css">
+	<link rel="stylesheet" href="https://github.com/stemware/gaining-control-of-instruction-pointer/blob/master/style.css">
+
+	<h1>A gentle introduction to stack based overflows.Part 1: Gaining control of  EIP to alter code execution</h1>
+	<p>Hello and welcome to my series on binary exploitation on windows. Even though the stack overflow tutorial will be covered in the second part of the series and later posting, I wish to cover some basics first. In this tutorial the main aim will be to look at how we can redirect code execution of a simple c program to execute a function that was not called in the main function. I have provided the binary executable to my github and the source code if you wish to follow along. Be mindful that if you do compile the source on your own, the addresses might change but I don’t think that will be a challenge to anyone as the program is not complicated.</p>
+
+
+	
+	<h3>Introduction to our debugger</h3>
+	<p>x32dbg – honestly, any debugger will get the job done as I aim to cover the basics for this post. However, I might have to change in future postings to immunity as it’s the one I am most aquatinted with.</p>
+
+	<img src="PNG/Gain_Control_01.png" alt="Gain_Control_01" style="width:800px;height:600px;">
+
+	<h3>CPU INSTRUCTIONS</h3>
+		<p>This window displays the memory addresses, opcode and assembly instructions of the program. I plan on covering a cpu instructions we might go off-track. I also advice to check the Intel manual or just google the instruction if you are not familiar. The assembly instruction are too many and vary according to system architecture.</p>
+	<h3>MEMORY DUMP</h3>
+		<p>The memory dump shows the contents of the application memory. The contents are showed in hexadecimal. On the right side of the window x32dbg displays the ASCII representation of the data.</p>
+	<h3>CPU REGISTERS</h3>
+		<p>Processor operations involve processing data which is stored in memory. However accessing data data from memory slows down the processor. Registers are internal memory storage locations used to speed up the processor operations. There are a limited number of registers built into the processor chip.In the meantime, we will mainly focus on 32 bit processor registers. I plan on doing some 64 bit exploitation but that will come later.There are ten 32 bit processor registers in IA architecture. They are divided into 3 groups:</p>
+		<ol>
+  			<li>General Registers</li>
+  			<li>Control Registers</li>
+  			<li>Segment Registers</li>
+		</ol> 
+	<h3>Data registers</h3>
+	<p>Mainly used for arithmetic and logical operations. These include:</p>
+		<ul>
+			<li>EAX- Known as the accumulator register. Used for operations such as add and subtract. The EAX register is also used to store return values of a function.</li>
+			<li>EBX – The base register is used in index addressing.</li>
+			<li>ECX – This is known as the counter register as it is used in storing the loop count in iterative operations.</li>
+			<li>EDX – this register is known as the data register. Usually used in input/output operations.it is also used alongside the EAX in operations involving multiplying and dividing of large values.</li>
+		</ul>
+	<h3>Pointer Registers</h3>
+	<p>These consist of:</p>
+	<ul>
+		<li>EIP – The instruction pointer. It stores the offset address of the next instruction to be executed.</li>
+		<li>ESP – The stack pointer provides the offset value within the stack. ESP points to the current position of data or address of the stack which is at the top.</li>
+		<li>EBP – The Base pointer is used to keep track of the base/or bottom of the stack. The base pointer hold the location of the current stack frame.</li>
+	</ul>
+	<h3>Pointer Registers</h3>
+	<p>The Index Register are used are used for indexed addressing and sometimes used in addition and subtraction</p>
+	<ul>
+		<li>ESI – the source index. Used as the source index for string operations.</li>
+		<li>EDI – the destination index. Used as the destination index for string operations.</li>
+	</ul>
+	<h3>Control Registers</h3>
+	<p>The 32 bit instruction pointer register and 32 bit flags combined are considered as control registers. Instructions involving comparisons and mathematical calculations change the status of the flags. Some other conditional instructions test the value of these flags to take the control flow to another location. The most common flag bits include the following:</p>
+	<ul>
+		<li>Overflow flag – this flag indicates the overflow of the left-most bit (which is the high-order bit) of data after a signed arithmetic operation.</li>
+		<li> Zero Flag: The zero flag indicates the result of an arithmetic or comparison operation. When the result is zero, the flag is set to one and when the result is one the flag is set to zero.</li>
+		<li>Interrupt Flag: the Interrupt flag determines whether external interrupts like from the keyboard supposed to be ignored or not. The external interrupt is disabled when the value is zero and is enable when the value is 1.</li>
+		<li>Direction flag – the DF determines in what direction the string data will be compared or moved.When the flag is set to zero,the string operation takes a left- right direction and when the flag is set to 1, the string takes a right to left operation.</li>
+		<li>Carry Flag – the carry flag stores the contents of the last bit of a shift or rotate operation.</li>
+		<li>Auxiliary Carry Flag – the AF contains the carry from bit 3 to bit 4 following and arithmetic operation.it is set when a one byte arithmetic operation causes a carry from bit 3 into bit 4.</li>
+		<li>Parity Flag – the PF indicates the total number of 1 bits in the result obtained from an arithmetic operation.</li>
+		<li>Sign Flag – It shows the sign of the result of an arithmetic operation.</li>
+
+	<h3>Segment Registers</h3>
+	<p>Segments are defined as specific areas in program that contain data, code and the stack.</p>
+	<ul>
+		<li>Data segment - this segment contains information such as the data, constants defined in the program and work areas.</li>
+		<li>Code segment – the code segment contains all the instructions to be executed by the program.</li>
+		<li>Stack segment – the stack segment contains all data and return addresses of the functions and subroutines defined in the program.More on the working of the stack in the next part of this post.</li>
+	</ul>
+	<h3>The Stack</h3>
+	<p>If at all you want to read more about win32 process memory, I advise you to check out corelean’s here. 
+	https://www.corelan.be/index.php/2009/07/19/exploit-writing-tutorial-part-1-stack-based-overflows/
+	The tutorials on exploit development are stuff of legends and do a much better job at explaining how the win32 memory is mapped out.I really advice you to check out the site as the tutorial cover different topics in great detail.I decided to focus more on the stack as it is much more important to understand what will be going later.
+	The stack is a LIFO data structure used to allocate short term storage for local function variables in an ordered manner. The stack is stored in RAM and variables created on the stack will go out of scope automatically once deallocated. Parameters used for passing are also stored on the stack but once the input exceeds the space allocated, the can lead to a vulnerability a stack overflow. We look at stack overflows and how they are prevented on modern systems in detail in a later post.</p>
+
+	<h1>More infor</h1>
+	<p>First let us look at how the program executes in x32dbg.if we load the binary into the debugger, we see that x32dbg takes us to the entry point (in this case at 004012E0)</p>
+	<img src="PNG/Gain_Control_02.png" alt="Gain_Control_02" style="width:800px;height:600px;">
+	<p>If we scroll a little further down, we will locate the main function with the string “this is the main function” on the right side of the disassembly window. The main function begins executing at address 004012149A.We are going to set a breakpoint on the call at address 004012148F.</p>
+	<img src="PNG/Gain_Control_03.png" alt="Gain_Control_03" style="width:800px;height:600px;">
+	<p>Running the program, we see that it stops executing at address 004012148F.The instruction pointer EIP also points at this same address. If we look at our stack window, we see that 56565859 was loaded onto the stack. This is passed as a parameter to the load_variables function which is about to execute.</p>
+
+	<img src="PNG/Gain_Control_04.png" alt="Gain_Control_04" style="width:800px;height:600px;">
+
+	<p>Single stepping takes us to address 0040121460 where the load_variables function begins. We can see that EIP points to this same address but before the function actually starts executing, address 00401214C4 is pushed onto the stack. This address is known as the return address and once the load_variables function is done executing, the program returns to this address to resume normal execution after the previous call.</p>
+	<img src="PNG/Gain_Control_05.png" alt="Gain_Control_05" style="width:800px;height:600px;">
+	<p>The address at 0040121460 contains an instruction which pushes ebp onto the stack. The next instruction mov ebp,esp sets the esp equal to ebp. 10 is subtracted from esp to accommodate for the variable which will later be pushed on to the stack. The previous sequence of instructions is what is known as a function prologue. These registers are later popped off the stack once the function is done executing.If we single step until the return address on the main function, we can see that the value 56575859 that was earlier passed is on the stack.</p>
+	<img src="PNG/Gain_Control_06.png" alt="Gain_Control_06" style="width:800px;height:600px;">
+	<p>After this, we can see that the does_not_execute function does not execute. Proof of that can be shown on the console as nothing is printed on it even though the does_not_execute function prints out “This Function Does Not Execute. It Is Never Called.”The main aim of the next part of this tutorial will be to execute the does_not_execute function. When we restart the program and run it until it reaches the breakpoint in the main function, the return address is pushed onto the stack for the program to resume execution once it is done with the call and EIP points to the beginning of load_variables function. We can see that the return address 004014C4 is on the stack. We then right click on it and press modify.</p>
+	<img src="PNG/Gain_Control_07.png" alt="Gain_Control_07" style="width:800px;height:600px;">
+	<p>A window pops containing the return address and some other information. </p>
+	<img src="PNG/Gain_Control_08.png" alt="Gain_Control_08" style="width:800px;height:600px;">
+	<p>We are going to replace 004014C4 with the address of does_not_execute function is which at 0040147B. In doing so, we ensure that once load_variables function is done executing and reaches the ret instruction at address 0040147A, EIP will point to next address which in this case is the start of the does_not_execute function.</p>
+
+	<img src="PNG/Gain_Control_09.png" alt="Gain_Control_09" style="width:800px;height:600px;">
+	<p>If we look at the stack at the as at now, we see that 56565859 which an argument passed in the main function is still stored on it. The Program assumes that it will return to return to the main function to continue its normal execution. We continue single stepping until we EIP point to the call to printf instruction at address 0040148E and we simply step over it to avoid a step by step trace of printf function</p>
+	<img src="PNG/Gain_Control_10.png" alt="Gain_Control_10" style="width:800px;height:600px;">
+	<p>Once printf is called we can see that the text “This Function Does Not Do Anything. It Is Never Called By Any Other Function” is printed out to the console. This proves that we have successfully gained control of the instruction pointer and changed the flow of execution of the program.</p>
+	<img src="PNG/Gain_Control_11.png" alt="Gain_Control_11" style="width:800px;height:600px;">
+
+
+
+
+
+</body>
+</html>
